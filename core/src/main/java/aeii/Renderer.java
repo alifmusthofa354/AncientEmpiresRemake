@@ -469,7 +469,17 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 		}
 	}
 
-	public final int getGameAction(int var1)
+	public boolean isShown() { return true; }
+	
+	public int getWidth() {
+		return Gdx.graphics.getWidth();
+	}
+	
+	public int getHeight() {
+		return Gdx.graphics.getHeight();
+	}
+
+	public final int getGameAction(int keycode)
 	{
 		try
 		{
