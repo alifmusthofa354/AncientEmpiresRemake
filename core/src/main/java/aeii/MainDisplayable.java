@@ -361,6 +361,7 @@ public final class MainDisplayable extends PaintableObject
 	public AuxDisplayable auxImportLevelsList;
 	public AuxDisplayable auxExportLevelsContainer;
 	public AuxDisplayable auxExportLevelsList;
+	// public FileSystemObject fso; // REMOVED
 	public String[] currentFileList;
 	public byte currentTile;
 	public byte currentUnitType;
@@ -405,7 +406,8 @@ public final class MainDisplayable extends PaintableObject
 		showAtackRange = false;
 		drawCursorFlag = true;
 		units = new Vector();
-		turnQueueLength = 2;
+	
+turnQueueLength = 2;
 		fractionsPosInTurnQueue = new byte[5];
 		fractionsTurnQueue = new byte[4];
 		playerTeams = new byte[4];
@@ -515,7 +517,7 @@ public final class MainDisplayable extends PaintableObject
 
 		setLoadProgress(58);
 		
-		sfmLogo = new SpriteFrame("ms_logo");
+sfmLogo = new SpriteFrame("ms_logo");
 		setLoadProgress(62);
 		
 		DataInputStream var17;
@@ -765,7 +767,16 @@ public final class MainDisplayable extends PaintableObject
 			{
 				for(unit = 0; unit < sfmTiles.length; ++unit)
 				{
+					// Creating colored tiles for move range visualization
+					// This used to draw on a mutable Image. In libGDX we can use Pixmap or FrameBuffer.
+					// For simplicity, let's use Pixmap.
 					Pixmap pixmap = new Pixmap(24, 24, Pixmap.Format.RGBA8888);
+					// Draw base tile? No, original just drew tile then alpha over it.
+					// We need to replicate sfmTiles[unit].paint(g) onto pixmap.
+					// This is hard with Pixmap as we have TextureRegions.
+					// Alternative: Just use a colored overlay sprite in rendering.
+					
+					// Placeholder: transparent color
 					pixmap.setColor(0, 0, 0, 0); 
 					pixmap.fill();
 					alphaCoveredTiles[fraction][unit] = new TextureRegion(new Texture(pixmap));
@@ -877,6 +888,17 @@ public final class MainDisplayable extends PaintableObject
 				}
 			}
 		}
+		
+		// Intro Logic
+		if (mode == 0) {
+			if (delayCounter > 3000) { // 3 seconds delay
+				mode = 4; // Switch to Main Menu
+				createCircleMenu(MAIN_MENU_ITEMS, halfWidth_, halfHeight_, this);
+			}
+		}
+		else if (mode == 4) {
+			// Menu logic is handled by AuxDisplayable usually
+		}
 	}
 
 	public final void paint(SpriteBatch batch)
@@ -886,6 +908,22 @@ public final class MainDisplayable extends PaintableObject
 			// Intro/Menu
 			if (sfmLogo != null) {
 				sfmLogo.paint(batch, halfWidth_ - sfmLogo.imgwidth/2, halfHeight_ - sfmLogo.imgheight/2);
+			}
+		} else if (mode == 4) {
+			// Main Menu Background
+			if (sfmTiles != null && sfmTiles.length > 1) {
+				// Draw some background tiles
+				for(int x=0; x<width_; x+=24) {
+					for(int y=0; y<height_; y+=24) {
+						sfmTiles[1].paint(batch, x, y); // Grass
+					}
+				}
+			}
+			// Logo
+			if (sfmGameLogo != null) {
+				sfmGameLogo.paint(batch, halfWidth_ - sfmGameLogo.imgwidth/2, 20);
+			} else if (sfmLogo != null) {
+				sfmLogo.paint(batch, halfWidth_ - sfmLogo.imgwidth/2, 20);
 			}
 		}
 	}
@@ -963,4 +1001,70 @@ public final class MainDisplayable extends PaintableObject
 	public static final void drawWavedImage(SpriteBatch g, int var1, int var2, int dir, SpriteFrame img, int x, int y, int var7) {}
 	public static final void drawDrap(SpriteBatch g, int color, int var2, int var3, int var4, int x, int y, int width, int height) {}
 	public final void paintCombatAnimation(SpriteBatch g) {}
+
+	public Sprite createSimpleSparkSprite(Sprite baseSprite, int x, int y, int bounceDelta, int bounceMode, int delay, int mode) {
+		Sprite s = Sprite.createSimpleSparkSprite(baseSprite, x, y, bounceDelta, bounceMode, delay, (byte)mode);
+		if (activeEffects == null) activeEffects = new Vector();
+		activeEffects.addElement(s);
+		return s;
+	}
+	
+	public final void createCircleMenu(byte[] var1, int var2, int var3, PaintableObject var4)
+	{
+		AuxDisplayable auxdisp = new AuxDisplayable((byte)0, 0);
+
+		var_21e9 = var2;
+		var_223e = var3;
+
+		int var6 = var1.length;
+		Vector var7 = new Vector(var6);
+		Vector var8 = new Vector(var6);
+
+		for(int var9 = 0; var9 < var6; ++var9)
+		{
+			byte var10 = var1[var9];
+			if(macrospaceHighScoreUpload || var10 != 6)
+			{
+				var7.addElement(MENU_ITEMS_TEXT[var10]);
+				var8.addElement(sfmMenuIcons[var10]);
+			}
+		}
+
+		String[] var12 = new String[var7.size()];
+		SpriteFrame[] var11 = new SpriteFrame[var8.size()];
+
+		var7.copyInto(var12);
+		var8.copyInto(var11);
+
+		auxdisp.initCircleMenuAuxDisplayable(var12, var11, halfWidth_, var_21e9, var_223e, 3, (byte)1);
+		auxdisp.setNextDisplayable(var4);
+
+		PaintableObject.currentRenderer.setCurrentDisplayable(auxdisp);
+	}
+
+	public final void createInGameMiniMenu(byte[] var1, Unit var2)
+	{
+		auxInGameMenu = new AuxDisplayable((byte)0, 0);
+		int var3;
+		String[] var4 = new String[var3=var1.length];
+		SpriteFrame[] var5 = new SpriteFrame[var3];
+
+		for(int var6 = 0; var6 < var1.length; ++var6)
+		{
+			var4[var6] = INGAME_ACTIONS_TEXT[var1[var6]];
+			var5[var6] = sprActionIcons[var1[var6]];
+		}
+
+		if(cursorMapY * 24 <= height_ / 2 - 24)
+		{
+			auxInGameMenu.initMiniListAuxDisplayable(var4, var5, 0, height_ - sprButtons.height, 36);
+		}
+		else
+		{
+			auxInGameMenu.initMiniListAuxDisplayable(var4, var5, width_, 0, 8);
+		}
+
+		auxInGameMenu.setNextDisplayable(this);
+		PaintableObject.currentRenderer.setCurrentDisplayable(auxInGameMenu);
+	}
 }

@@ -83,7 +83,7 @@ public final class Renderer implements Screen, InputProcessor
 		// Input handling
 		Gdx.input.setInputProcessor(this);
 		
-try {
+		try {
 			loadResources();
 			PaintableObject.loadLocale("lang.dat", false);
 			
