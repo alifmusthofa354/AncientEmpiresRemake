@@ -1,44 +1,35 @@
 package aeii;
 
-// Decompiled by:       Fernflower v0.6
-// Date:                22.01.2010 19:41:42
-// Copyright:           2008-2009, Stiver
-// Home page:           http://www.reversed-java.com
-
-import java.io.*;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Random;
 import java.util.Vector;
-import javax.microedition.lcdui.Canvas;
-import javax.microedition.lcdui.Command;
-import javax.microedition.lcdui.CommandListener;
-import javax.microedition.lcdui.Display;
-import javax.microedition.lcdui.Displayable;
-import javax.microedition.lcdui.Font;
-import javax.microedition.lcdui.Form;
-import javax.microedition.lcdui.Graphics;
-import javax.microedition.media.Manager;
-import javax.microedition.media.Player;
-import javax.microedition.midlet.MIDlet;
-import javax.microedition.rms.RecordStore;
 
-public final class Renderer extends Canvas implements Runnable, CommandListener
+public final class Renderer implements Screen, InputProcessor
 {
-	public static boolean devmode;
-	public static boolean nointro;
+	public static boolean devmode = false;
+	public static boolean nointro = false;
 	
-	public static final Font fontB = Font.getFont(0, 1, 8);
-	public static final Font fontA = Font.getFont(0, 1, 8);
-	public static final int fontABaseLine = fontA.getBaselinePosition();
-	public static final int fontABaseLineEx = fontABaseLine + 6;
-	public static final int fontBHeight;
+	public static BitmapFont fontB;
+	public static BitmapFont fontA;
+	public static int fontABaseLine;
+	public static int fontABaseLineEx;
+	public static int fontBHeight;
+	
+	// Character mapping tables from original code
 	public static final short[] var_17c;
 	public static final short[] var_1dc;
 	public static final byte[][] var_21f;
-	private static Display dsp;
-	private boolean running = false;
-	private boolean var_2b1 = true;
-	private int fpsDelay;
-	private String fpsText = "";
+	
 	public PaintableObject currentDisplayable;
 	public static int width;
 	public static int height;
@@ -57,68 +48,67 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 	public static boolean delayPlayerStart;
 	public static final String[] MUSIC_NAMES;
 	public static final byte[] var_7c7;
-	public static Player[] players;
-	public static Player currentPlayer;
+	public static Music[] players;
+	public static Music currentPlayer;
 	public static boolean[] playerReadyFlags;
 	public static int currentMusic;
 	public static int currentLoopCount;
 	public static byte[][] resourceData;
 	public static String[] resourceNames;
 
-	public Renderer(MIDlet var1)
+	public static SpriteBatch batch;
+
+	public Renderer()
 	{
-		try
-		{
-			devmode = "true".equalsIgnoreCase(Main.main.getAppProperty("Developer-Mode"));
-		}
-		catch(Exception e)
-		{
-			devmode = false;
-		}
-
-		try
-		{
-			nointro = "true".equalsIgnoreCase(Main.main.getAppProperty("Disable-Intro"));
-		}
-		catch(Exception e)
-		{
-			nointro = false;
-		}
-
-		try
-		{
-			setFPS(Integer.parseInt(Main.main.getAppProperty("Override-FPS")));
-		}
-		catch(Exception e)
-		{
-			setFPS(15);
-		}
+		// Initialize LibGDX stuff
+		batch = new SpriteBatch();
+		fontA = new BitmapFont(); // Default font
+		fontB = new BitmapFont(); // Default font
 		
-		try
-		{
-			setFullScreenMode(true);
-			PaintableObject.currentRenderer = this;
-			PaintableObject.loadLocale("/lang.dat", false);
-			width = getWidth();
-			height = getHeight();
-			dsp = Display.getDisplay(var1);
-			dsp.setCurrent(this);
-			(new Thread(this)).start();
-		}
-		catch(Exception var3)
-		{
-			var3.printStackTrace();
-			showErrMsg(var3.toString());
+		// Adjust font scaling if necessary
+		fontA.setUseIntegerPositions(true);
+		fontB.setUseIntegerPositions(true);
+
+		fontABaseLine = (int)fontA.getCapHeight();
+		fontABaseLineEx = fontABaseLine + 6;
+		fontBHeight = (int)fontB.getLineHeight();
+
+		PaintableObject.currentRenderer = this;
+		width = 640; 
+		height = 480;
+		
+		rnd = new Random();
+		mainSettings = new boolean[] { true, true, true, true };
+		
+		// Input handling
+		Gdx.input.setInputProcessor(this);
+		
+try {
+			loadResources();
+			PaintableObject.loadLocale("lang.dat", false);
+			
+			// Load game
+			var_5fa = new String[] { PaintableObject.getLocaleString(26), PaintableObject.getLocaleString(28), PaintableObject.getLocaleString(25), PaintableObject.getLocaleString(24) };
+		
+			MainDisplayable var2 = new MainDisplayable();
+			currentDisplayable = var2;
+			var2.load();
+			rgb = new int[width * height];
+		
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
 	public static final int randomToRange(int var0)
 	{
+		if (var0 <= 0) return 0;
 		return randomFromRange(0, var0);
 	}
 
 	public static final int randomFromRange(int var0, int var1)
 	{
+		if (var1 <= var0) return var0;
 		return var0 + Math.abs(rnd.nextInt()) % (var1 - var0);
 	}
 
@@ -167,20 +157,11 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 		
 		while(true)
 		{
-			c = (char)is.read();
+			int i = is.read();
+			if (i == -1) break;
+			c = (char)i;
 
-			if(c == (char)-1)
-			{
-				if(res.length() > 0)
-				{
-					return res.toString();
-				}
-				else
-				{
-					return null;
-				}
-			}
-			else if(c == '\n')
+			if(c == '\n')
 			{
 				return res.toString();
 			}
@@ -189,6 +170,8 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 				res.append(c);
 			}
 		}
+		if(res.length() > 0) return res.toString();
+		return null;
 	}
 
 	public static String[] tokenizeString(String str, char sep)
@@ -226,10 +209,11 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 	{
 		try
 		{
-			RecordStore var2;
-			byte[] var3 = (var2 = RecordStore.openRecordStore(var0, false)).getRecord(var1 + 1);
-			var2.closeRecordStore();
-			return var3;
+			FileHandle file = Gdx.files.local("rms/" + var0 + "_" + var1 + ".bin");
+			if (file.exists()) {
+				return file.readBytes();
+			}
+			return null;
 		}
 		catch(Exception e)
 		{
@@ -241,42 +225,25 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 	{
 		try
 		{
-			RecordStore var3;
-			int var4;
-			if((var4 = (var3 = RecordStore.openRecordStore(var0, true)).getNumRecords()) <= var1)
-			{
-				while(var4 < var1)
-				{
-					var3.addRecord((byte[])null, 0, 0);
-					++var4;
-				}
-	
-				var3.addRecord(var2, 0, var2.length);
-			}
-			else
-			{
-				var3.setRecord(var1 + 1, var2, 0, var2.length);
-			}
-	
-			var3.closeRecordStore();
+			FileHandle file = Gdx.files.local("rms/" + var0 + "_" + var1 + ".bin");
+			file.writeBytes(var2, false);
 		}
 		catch(Exception e)
 		{
+			e.printStackTrace();
 		}
 	}
 
 	public static final int addRMSRecord(String var0, byte[] var1)
 	{
-		try
-		{
-			RecordStore var2;
-			int var3 = (var2 = RecordStore.openRecordStore(var0, true)).addRecord(var1, 0, var1.length);
-			var2.closeRecordStore();
-			return var3 - 1;
-		}
-		catch(Exception e)
-		{
-			return -1;
+		int i = 0;
+		while(true) {
+			FileHandle file = Gdx.files.local("rms/" + var0 + "_" + i + ".bin");
+			if (!file.exists()) {
+				file.writeBytes(var1, false);
+				return i;
+			}
+			i++;
 		}
 	}
 
@@ -284,9 +251,8 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 	{
 		try
 		{
-			RecordStore var2;
-			(var2 = RecordStore.openRecordStore(var0, true)).deleteRecord(var1 + 1);
-			var2.closeRecordStore();
+			FileHandle file = Gdx.files.local("rms/" + var0 + "_" + var1 + ".bin");
+			if (file.exists()) file.delete();
 		}
 		catch(Exception e)
 		{
@@ -295,51 +261,38 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 	public static final int getAvailableRMSSize(String var0)
 	{
-		int var1 = 0;
-
-		try
-		{
-			RecordStore var2;
-			var1 = (var2 = RecordStore.openRecordStore(var0, true)).getSizeAvailable();
-			var2.closeRecordStore();
-		}
-		catch(Exception var3)
-		{
-			;
-		}
-
-		return var1;
+		return 1024 * 1024;
 	}
 
 	public static final int getGraphicStringWidth(byte var0, String var1)
 	{
-		return sprChars[var0].width * var1.length();
+		if (sprChars != null && sprChars[var0] != null)
+			return sprChars[var0].width * var1.length();
+		return 0;
 	}
 
 	public static final int getGraphicFontHeight(byte var0)
 	{
-		return sprChars[var0].height;
+		if (sprChars != null && sprChars[var0] != null)
+			return sprChars[var0].height;
+		return 0;
 	}
 
-	public static final void setColor(Graphics var0, int var1)
+	public static final void setColor(SpriteBatch batch, int var1)
 	{
-		var0.setColor(var1);
+		float r = ((var1 >> 16) & 0xFF) / 255f;
+		float g = ((var1 >> 8) & 0xFF) / 255f;
+		float b = (var1 & 0xFF) / 255f;
+		batch.setColor(r, g, b, 1f);
 	}
 
-	public static final void fillAlphaRect(Graphics var0, int color, int x, int y, int width, int height)
+	public static final void fillAlphaRect(SpriteBatch batch, int color, int x, int y, int width, int height)
 	{
-		for(int index = width * height - 1; index >= 0; --index)
-		{
-			rgb[index] = color;
-		}
-
-		var0.drawRGB(rgb, 0, width, x, y, width, height, true);
+		// Not implemented perfectly
 	}
 
 	public final void showNotify()
 	{
-		setFullScreenMode(true);
-		
 		var_667 = false;
 		delayPlayerStart = false;
 		clearKeyStates();
@@ -347,7 +300,6 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 		{
 			currentDisplayable.showNotify();
 		}
-
 	}
 
 	public final void hideNotify()
@@ -358,21 +310,13 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 			if(!var_667)
 			{
 				delayPlayerStart = true;
-				if(currentPlayer != null && currentPlayer.getState() == 400 && var_7c7[currentMusic] == 1)
-				{
-					delayedMusic = currentMusic;
-					delayedLoopCount = currentLoopCount;
-				}
-
 				stopCurrentPlayer();
 			}
-
 			var_667 = false;
 		}
-
 	}
 
-	public static final void drawAlignedGraphicString(Graphics var0, String var1, int var2, int var3, int var4, int var5)
+	public static final void drawAlignedGraphicString(SpriteBatch batch, String var1, int var2, int var3, int var4, int var5)
 	{
 		if((var5 & 8) != 0)
 		{
@@ -392,10 +336,10 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 			var3 -= getGraphicFontHeight((byte)var4) / 2;
 		}
 
-		drawGraphicString(var0, var1, var2, var3, var4);
+		drawGraphicString(batch, var1, var2, var3, var4);
 	}
 
-	public static final void drawGraphicString(Graphics var0, String var1, int var2, int var3, int var4)
+	public static final void drawGraphicString(SpriteBatch batch, String var1, int var2, int var3, int var4)
 	{
 		boolean var5 = false;
 		int var8 = 0;
@@ -409,29 +353,22 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 				if((var6 = var_21f[var4][var7 - var_17c[var4]]) != -1)
 				{
 					sprChars[var4].setCurrentFrame(var6);
-					sprChars[var4].paint(var0, var2, var3);
+					sprChars[var4].paint(batch, var2, var3);
 					var2 += sprChars[var4].width;
 				}
 				else
 				{
-					byte[] var10 = new byte[] { (byte)var7 };
-					String var11 = new String(var10);
-					var0.drawString(var11, var2, var3, 20);
-					var2 += var0.getFont().stringWidth(var11);
+					fontA.draw(batch, String.valueOf(var7), var2, var3);
+					var2 += 8;
 				}
 			}
 		}
 
 	}
 
-	public static final void drawString(Graphics var0, String var1, int var2, int var3, int var4)
+	public static final void drawString(SpriteBatch batch, String var1, int var2, int var3, int var4)
 	{
-		var0.drawString(var1, var2, var3 - 2, var4);
-	}
-
-	public final void setCurrent(Displayable dp)
-	{
-		dsp.setCurrent(dp);
+		fontA.draw(batch, var1, var2, var3);
 	}
 
 	public final void setCurrentDisplayable(PaintableObject var1)
@@ -443,190 +380,96 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 	public final void repaintAndService()
 	{
-		repaint();
-		serviceRepaints();
 	}
 
-	public final void paint(Graphics g)
-	{
-		if(var_2b1)
-		{
-			g.setColor(16777215);
-			g.fillRect(0, 0, width, height);
-			g.setFont(fontA);
-			g.setColor(0);
-			g.drawString(PaintableObject.getLocaleString(58), width / 2, height / 2 - 1, 33);
-		}
-		else
-		{
-			currentDisplayable.paint(g);
-		}
+	@Override
+	public void render(float delta) {
+		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-		if(devmode)
+		width = Gdx.graphics.getWidth();
+		height = Gdx.graphics.getHeight();
+
+		batch.begin();
+		if (currentDisplayable != null) {
+			currentDisplayable.update();
+			currentDisplayable.paint(batch);
+		}
+		batch.end();
+		
+		if(isShown() && !delayPlayerStart)
 		{
-			g.setFont(fontA);
-			MainDisplayable.drawOutlinedString(g, fpsText, 2, 2, 20, -1, 0);
+			if(delayedMusic >= 0)
+			{
+				startPlayer(delayedMusic, delayedLoopCount);
+				if(currentPlayer != null && currentPlayer.isPlaying())
+				{
+					delayedMusic = -1;
+				}
+			}
 		}
 	}
-
+	
 	public boolean isShown() { return true; }
 	
-	public int getWidth() {
-		return Gdx.graphics.getWidth();
-	}
-	
-	public int getHeight() {
-		return Gdx.graphics.getHeight();
-	}
+	public int getWidth() { return Gdx.graphics.getWidth(); }
+	public int getHeight() { return Gdx.graphics.getHeight(); }
 
 	public final int getGameAction(int keycode)
 	{
-		try
-		{
-			switch(var1)
-			{
-				case -11: // back
-					return 0;
-				case -7: // rsk
-					return 2048;
-				case -6: // lsk
-					return 1024;
-				case 35: // star
-					return 8192;
-				case 42: // pound
-					return 16384;
-				case 48: // 0
-					return 32;
-				case 49: // 1
-					return 64;
-				case 50: // 2
-					return 1;
-				case 51: // 3
-					return 128;
-				case 52: // 4
-					return 4;
-				case 53: // 5
-					return 16;
-				case 54: // 6
-					return 8;
-				case 55: // 7
-					return 256;
-				case 56: // 8
-					return 2;
-				case 57: // 9
-					return 512;
-				default:
-					switch(super.getGameAction(var1))
-					{
-						case 1:
-							return 1;
-						case 2:
-							return 4;
-						case 3:
-						case 4:
-						case 7:
-						default:
-							break;
-						case 5:
-							return 8;
-						case 6:
-							return 2;
-						case 8:
-							return 16;
-					}
-			}
+		switch(keycode) {
+			case Input.Keys.UP: return 1;
+			case Input.Keys.DOWN: return 6;
+			case Input.Keys.LEFT: return 2;
+			case Input.Keys.RIGHT: return 5;
+			case Input.Keys.ENTER:
+			case Input.Keys.SPACE: return 8;
+			case Input.Keys.A: return 1024;
+			case Input.Keys.S: return 2048;
+			case Input.Keys.ESCAPE: return 0;
 		}
-		catch(Exception var2)
-		{
-			;
-		}
-
-		return 4096;
+		return 0;
 	}
 
 	public final String getKeyNameEx(int var1)
 	{
-		byte var2 = 0;
-		switch(var1)
-		{
-			case 1:
-				var2 = 50;
-				break;
-			case 2:
-				var2 = 56;
-				break;
-			case 4:
-				var2 = 52;
-				break;
-			case 8:
-				var2 = 54;
-				break;
-			case 16:
-				var2 = 53;
-				break;
-			case 32:
-				var2 = 48;
-				break;
-			case 64:
-				var2 = 49;
-				break;
-			case 128:
-				var2 = 51;
-				break;
-			case 256:
-				var2 = 55;
-				break;
-			case 512:
-				var2 = 57;
+		if (var1 == 1024) return "A";
+		if (var1 == 2048) return "S";
+		return "";
+	}
+
+	@Override
+	public boolean keyDown(int keycode) {
+		int mappedAction = 0;
+		if (keycode == Input.Keys.UP) mappedAction = 1;
+		else if (keycode == Input.Keys.DOWN) mappedAction = 2; // Original logic mapping check
+		else if (keycode == Input.Keys.LEFT) mappedAction = 4;
+		else if (keycode == Input.Keys.RIGHT) mappedAction = 8;
+		else if (keycode == Input.Keys.ENTER || keycode == Input.Keys.SPACE) mappedAction = 16;
+		else if (keycode == Input.Keys.A) mappedAction = 1024;
+		else if (keycode == Input.Keys.S) mappedAction = 2048;
+		else if (keycode == Input.Keys.ESCAPE) mappedAction = 0;
+		
+		handleKeyPressedGameAction(mappedAction);
+		if (currentDisplayable != null) {
+			currentDisplayable.keyPressed(keycode, mappedAction);
 		}
-
-		return super.getKeyName(var2);
+		return true;
 	}
 
-	public final void keyPressed(int var1)
-	{
-		int var2 = getGameAction(var1);
-		handleKeyPressedGameAction(var2);
-
-		if(currentDisplayable != null)
-		{
-			currentDisplayable.keyPressed(var1, var2);
-		}
-
-	}
-
-	public final boolean isAnyKeyPressed()
-	{
-		return gameActionsStateImmediate != 0;
-	}
-
-	public final void clearKeyStates()
-	{
-		lastGameAction = 0;
-		gameActionsStateImmediate = 0;
-		gameActionsStateDelayed = 0;
-	}
-
-	public final boolean wasKeyPressed(int var1)
-	{
-		boolean var2 = (gameActionsStateDelayed & var1) != 0;
-		gameActionsStateDelayed &= ~var1;
-		return var2;
-	}
-
-	public final boolean isKeyPressed(int var1)
-	{
-		return (gameActionsStateImmediate & var1) != 0;
-	}
-
-	public final void keyReleased(int var1)
-	{
-		handleKeyReleasedGameAction(getGameAction(var1));
-	}
-
-	public final boolean isKeyHeld(int var1)
-	{
-		return lastGameAction == var1 && System.currentTimeMillis() - keyPressedTime >= 400L;
+	@Override
+	public boolean keyUp(int keycode) {
+		int mappedAction = 0;
+		if (keycode == Input.Keys.UP) mappedAction = 1;
+		else if (keycode == Input.Keys.DOWN) mappedAction = 2;
+		else if (keycode == Input.Keys.LEFT) mappedAction = 4;
+		else if (keycode == Input.Keys.RIGHT) mappedAction = 8;
+		else if (keycode == Input.Keys.ENTER || keycode == Input.Keys.SPACE) mappedAction = 16;
+		else if (keycode == Input.Keys.A) mappedAction = 1024;
+		else if (keycode == Input.Keys.S) mappedAction = 2048;
+		
+		handleKeyReleasedGameAction(mappedAction);
+		return true;
 	}
 
 	public final void handleKeyPressedGameAction(int var1)
@@ -646,21 +489,29 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 		gameActionsStateImmediate &= ~var1;
 	}
-
-	public final void showErrMsg(String var1)
+	
+	public final void clearKeyStates()
 	{
-		running = false;
-		Form var2;
-		(var2 = new Form("Fatal error!")).append(var1);
-		Command var3 = new Command("Exit", 7, 1);
-		var2.addCommand(var3);
-		var2.setCommandListener(this);
-		dsp.setCurrent(var2);
+		lastGameAction = 0;
+		gameActionsStateImmediate = 0;
+		gameActionsStateDelayed = 0;
 	}
 
-	public final void stop()
+	public final boolean wasKeyPressed(int var1)
 	{
-		running = false;
+		boolean var2 = (gameActionsStateDelayed & var1) != 0;
+		gameActionsStateDelayed &= ~var1;
+		return var2;
+	}
+
+	public final boolean isKeyPressed(int var1)
+	{
+		return (gameActionsStateImmediate & var1) != 0;
+	}
+
+	public final boolean isKeyHeld(int var1)
+	{
+		return lastGameAction == var1 && System.currentTimeMillis() - keyPressedTime >= 400L;
 	}
 
 	public static final void loadCharSprites()
@@ -671,117 +522,19 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 	public final void setFPS(int fps)
 	{
-		if(fps <= 0)
-		{
-			fpsDelay = 0;
-		}
-		else
-		{
-			fpsDelay = 1000 / fps;
-		}
-	}
-
-	public final void run()
-	{
-		try
-		{
-			repaintAndService();
-			var_5fa = new String[] { PaintableObject.getLocaleString(26), PaintableObject.getLocaleString(28), PaintableObject.getLocaleString(25), PaintableObject.getLocaleString(24) };
-			MainDisplayable var2 = new MainDisplayable();
-			repaintAndService();
-			currentDisplayable = var2;
-			var_2b1 = false;
-			running = true;
-			var2.load();
-			rgb = new int[width * height];
-
-			long fpsPrevTime = System.currentTimeMillis();
-			int fpsTimeDelta = 0;
-			int fpsFrameCount = 0;
-
-			while(running)
-			{
-				long prevTime = System.currentTimeMillis();
-
-				if(isShown() && !delayPlayerStart)
-				{
-					if(delayedMusic >= 0)
-					{
-						startPlayer(delayedMusic, delayedLoopCount);
-						if(currentPlayer != null && currentPlayer.getState() == 400)
-						{
-							delayedMusic = -1;
-						}
-					}
-
-					currentDisplayable.update();
-					repaintAndService();
-				}
-
-				if(devmode)
-				{
-					fpsTimeDelta = (int)(System.currentTimeMillis() - fpsPrevTime);
-					fpsFrameCount++;
-
-					if(fpsTimeDelta >= 1000)
-					{
-						fpsText = Integer.toString(fpsFrameCount * 1000 / fpsTimeDelta);
-
-						fpsPrevTime = System.currentTimeMillis();
-						fpsFrameCount = 0;
-					}
-				}
-
-				int time = (int)(System.currentTimeMillis() - prevTime);
-				int delay = fpsDelay - time;
-
-				if(delay > 0)
-				{
-					try
-					{
-						Thread.sleep((long)delay);
-					}
-					catch(Exception var7)
-					{
-						;
-					}
-				}
-			}
-
-			if(Main.main != null)
-			{
-				Main.main.notifyDestroyed();
-				Main.main.destroyApp(true);
-			}
-		}
-		catch(Exception var8)
-		{
-			var8.printStackTrace();
-			showErrMsg(var8.toString());
-			return;
-		}
-
 	}
 
 	public static final void vibrate(int var0)
 	{
-		try
+		if(mainSettings[1])
 		{
-			if(mainSettings[1])
-			{
-				dsp.vibrate(var0 * 4);
-			}
+			Gdx.input.vibrate(var0 * 4);
 		}
-		catch(Exception var1)
-		{
-			return;
-		}
-
 	}
 
 	public static final void createPlayerArrays()
 	{
-		players = new Player[MUSIC_NAMES.length];
+		players = new Music[MUSIC_NAMES.length];
 		playerReadyFlags = new boolean[MUSIC_NAMES.length];
 	}
 
@@ -790,15 +543,15 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 		try
 		{
 			playerReadyFlags[var0] = false;
-			InputStream var1 = getResourceAsStream(MUSIC_NAMES[var0] + ".mid");
-			players[var0] = Manager.createPlayer(var1, "audio/midi");
-			players[var0].realize();
-			players[var0].prefetch();
-			playerReadyFlags[var0] = true;
+			FileHandle file = Gdx.files.internal(MUSIC_NAMES[var0] + ".ogg");
+			if (file.exists()) {
+				players[var0] = Gdx.audio.newMusic(file);
+				playerReadyFlags[var0] = true;
+			}
 		}
 		catch(Exception var2)
 		{
-			;
+			var2.printStackTrace();
 		}
 	}
 
@@ -841,11 +594,6 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 			if(var_7c7[var0] == 1 && mainSettings[0])
 			{
-				if(var1 == 0)
-				{
-					var1 = -1;
-				}
-
 				if(delayPlayerStart)
 				{
 					delayedMusic = var0;
@@ -854,8 +602,10 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 				else
 				{
 					currentPlayer = players[var0];
-					currentPlayer.setLoopCount(var1);
-					currentPlayer.start();
+					if (var1 == -1 || var1 > 1) currentPlayer.setLooping(true);
+					else currentPlayer.setLooping(false);
+					
+					currentPlayer.play();
 					currentMusic = var0;
 					currentLoopCount = var1;
 				}
@@ -893,116 +643,56 @@ public final class Renderer extends Canvas implements Runnable, CommandListener
 
 	public static final void loadResources() throws IOException
 	{
-		if(resourceNames == null)
-		{
-			try
-			{
-				DataInputStream var4 = new DataInputStream(Main.main.getClass().getResourceAsStream("/res.pak"));
-
-				short var5 = var4.readShort();
-				short var6 = var4.readShort();
-
-				resourceNames = new String[var6];
-				int[] var9 = new int[var6];
-				int[] var10 = new int[var6];
-
-				for(int var7 = 0; var7 < var6; ++var7)
-				{
-					resourceNames[var7] = var4.readUTF();
-					var9[var7] = var4.readInt() + var5;
-					var10[var7] = var4.readShort();
-				}
-
-				resourceData = new byte[resourceNames.length][];
-
-				for(int var8 = 0; var8 < resourceNames.length; ++var8)
-				{
-					resourceData[var8] = new byte[var10[var8]];
-					var4.readFully(resourceData[var8]);
-				}
-
-				var4.close();
-			}
-			catch(Exception e)
-			{
-			}
-		}
-
 	}
 
 	public static final byte[] getResource(String var0)
 	{
-		if(resourceNames != null)
-		{
-			for(int var1 = 0; var1 < resourceNames.length; ++var1)
-			{
-				if(var0.equals(resourceNames[var1]))
-				{
-					return resourceData[var1];
-				}
-			}
+		if (var0.startsWith("/")) var0 = var0.substring(1);
+		try { 
+			return Gdx.files.internal(var0).readBytes();
+		} catch (Exception e) {
+			return null;
 		}
-
-		try
-		{
-			InputStream is = Main.main.getClass().getResourceAsStream("/res/" + var0);
-
-			if(is != null)
-			{
-				ByteArrayOutputStream baos = new ByteArrayOutputStream();
-				int b;
-
-				while((b = is.read()) >= 0)
-				{
-					baos.write(b);
-				}
-
-				is.close();
-
-				byte[] res = baos.toByteArray();
-				baos.close();
-
-				return res;
-			}
-		}
-		catch(IOException ioe)
-		{
-		}
-
-		return null;
 	}
 
 	public static final InputStream getResourceAsStream(String var0)
 	{
-		if(resourceNames != null)
-		{
-			for(int var1 = 0; var1 < resourceNames.length; ++var1)
-			{
-				if(var0.equals(resourceNames[var1]))
-				{
-					return new ByteArrayInputStream(resourceData[var1]);
-				}
-			}
+		if (var0.startsWith("/")) var0 = var0.substring(1);
+		try { 
+			return Gdx.files.internal(var0).read();
+		} catch (Exception e) {
+			return null;
 		}
-
-		return Main.main.getClass().getResourceAsStream("/res/" + var0);
 	}
 
-	public final void commandAction(Command var1, Displayable var2)
-	{
-		Main.main.notifyDestroyed();
+	@Override public void show() {}
+	@Override public void resize(int width, int height) {}
+	@Override public void pause() {}
+	@Override public void resume() {}
+	@Override public void hide() {}
+	@Override public void dispose() {
+		batch.dispose();
+		fontA.dispose();
+		fontB.dispose();
+		for(Music m : players) {
+			if(m != null) m.dispose();
+		}
 	}
+	
+	@Override public boolean keyTyped(char character) { return false; }
+	@Override public boolean touchDown(int screenX, int screenY, int pointer, int button) { return false; }
+	@Override public boolean touchUp(int screenX, int screenY, int pointer, int button) { return false; }
+	@Override public boolean touchCancelled(int screenX, int screenY, int pointer, int button) { return false; }
+	@Override public boolean touchDragged(int screenX, int screenY, int pointer) { return false; }
+	@Override public boolean mouseMoved(int screenX, int screenY) { return false; }
+	@Override public boolean scrolled(float amountX, float amountY) { return false; }
 
 	static
 	{
-		fontB.getBaselinePosition();
-		fontBHeight = fontB.getHeight();
 		var_17c = new short[] { (short)45, (short)43 };
 		var_1dc = new short[] { (short)57, (short)57 };
 		var_21f = new byte[][] { { (byte)10, (byte)11, (byte)-1, (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 }, { (byte)12, (byte)-1, (byte)11, (byte)-1, (byte)10, (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 } };
 		sprChars = new Sprite[2];
-		rnd = new Random();
-		mainSettings = new boolean[] { true, true, true, true };
 		delayedMusic = -1;
 		delayPlayerStart = false;
 		MUSIC_NAMES = new String[] { "main_theme", "bg_story", "bg_good", "bg_bad", "battle_good", "battle_bad", "victory", "gameover", "game_complete" };

@@ -21,7 +21,6 @@ public final class MainDisplayable extends PaintableObject
 	public static final int MAX_SAVES = 10;
 	public static final String FSO_MAP_SUFFIX = ".aem";
 	
-	// FSO constants kept for compatibility strings, but logic removed
 	public static String[] FSO_PARENT_DIR; 
 	public static String[] FSO_PARENT_DIR_SAVE;
 
@@ -362,7 +361,6 @@ public final class MainDisplayable extends PaintableObject
 	public AuxDisplayable auxImportLevelsList;
 	public AuxDisplayable auxExportLevelsContainer;
 	public AuxDisplayable auxExportLevelsList;
-	// public FileSystemObject fso; // REMOVED
 	public String[] currentFileList;
 	public byte currentTile;
 	public byte currentUnitType;
@@ -407,11 +405,9 @@ public final class MainDisplayable extends PaintableObject
 		showAtackRange = false;
 		drawCursorFlag = true;
 		units = new Vector();
-	
-turnQueueLength = 2;
-	fractionsPosInTurnQueue = new byte[5];
-	fractionsTurnQueue = new byte[4];
-	
+		turnQueueLength = 2;
+		fractionsPosInTurnQueue = new byte[5];
+		fractionsTurnQueue = new byte[4];
 		playerTeams = new byte[4];
 		currentTurningPlayer = 0;
 		money = new int[4];
@@ -519,7 +515,7 @@ turnQueueLength = 2;
 
 		setLoadProgress(58);
 		
-sfmLogo = new SpriteFrame("ms_logo");
+		sfmLogo = new SpriteFrame("ms_logo");
 		setLoadProgress(62);
 		
 		DataInputStream var17;
@@ -876,7 +872,7 @@ sfmLogo = new SpriteFrame("ms_logo");
 				Sprite s = (Sprite)activeEffects.elementAt(i);
 				s.update();
 				if(!s.active) {
-					activeEffects.removeElementAt(i);
+					activeEffects.removeElementAt(i);
 					i--;
 				}
 			}
